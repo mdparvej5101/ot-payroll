@@ -57,3 +57,11 @@ export const SettingsSchema = new mongoose.Schema({
 });
 
 export const SettingsModel = mongoose.model("Settings", SettingsSchema);
+
+// 4. User Schema (Simple Credentials Authentication)
+export const UserSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
+});
+
+export const UserModel = mongoose.model("User", UserSchema);

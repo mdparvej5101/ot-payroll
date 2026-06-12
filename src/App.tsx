@@ -18,7 +18,9 @@ import OvertimeDetailsTable from './components/OvertimeDetailsTable';
 import CompanyPayingHistory from './components/CompanyPayingHistory';
 import ManualOvertimeCalculator from './components/ManualOvertimeCalculator';
 import MonthlyReportsViewer from './components/MonthlyReportsViewer';
-import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, FileText, Play, Trash2 } from 'lucide-react';
+import LoginAuth from './components/LoginAuth';
+import UserManager from './components/UserManager';
+import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, Shield, FileText, Play, Trash2, Menu, X } from 'lucide-react';
 
 // Roster calculation and persistence setup
 
@@ -26,11 +28,13 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [rawData, setRawData] = useState<any[]>([]);
   const [fileName, setFileName] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster' | 'users'>('dashboard');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [calcMode, setCalcMode] = useState<'text' | 'excel'>('text');
   const [isCalculatedReportGenerated, setIsCalculatedReportGenerated] = useState(false);
   const [confirmDeleteEmpId, setConfirmDeleteEmpId] = useState<string | null>(null);
+  const [authedEmail, setAuthedEmail] = useState<string | null>(() => localStorage.getItem('auth_email'));
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>([]);
   const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>({});
@@ -216,24 +220,54 @@ export default function App() {
     handleAddPaymentHistory(record);
   };
 
+  if (!authedEmail) {
+    return <LoginAuth onLoginSuccess={(email) => setAuthedEmail(email)} />;
+  }
+
   return (
-    <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden">
-      {/* 1. Dark Sidebar as specified by Sleek Interface */}
-      <aside className="w-64 bg-slate-900 flex flex-col h-full shrink-0 print:hidden">
+    <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
+      {/* Mobile Drawer Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* 1. Dark Collapsible Sidebar/Drawer */}
+      <aside 
+        className={`fixed lg:static inset-y-0 left-0 w-64 bg-slate-900 flex flex-col h-full shrink-0 print:hidden z-50 transform ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0 transition-transform duration-300 ease-in-out`}
+      >
         {/* Brand Header */}
-        <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0 shadow-md">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
+        <div className="p-6 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0 shadow-md">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+            </div>
+            <span className="text-white font-bold text-xl tracking-tight">PayrollFlow</span>
           </div>
-          <span className="text-white font-bold text-xl tracking-tight">PayrollFlow</span>
+
+          {/* Close button for Mobile Drawer view */}
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            title="Close DrawerMenu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Sidebar Nav Items */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => {
+              setActiveTab('dashboard');
+              setIsSidebarOpen(false);
+            }}
             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
@@ -249,6 +283,7 @@ export default function App() {
             onClick={() => {
               setActiveTab('calculate');
               setSelectedEmployeeId(null);
+              setIsSidebarOpen(false);
             }}
             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
               activeTab === 'calculate'
@@ -265,6 +300,7 @@ export default function App() {
             onClick={() => {
               setActiveTab('reports');
               setSelectedEmployeeId(null);
+              setIsSidebarOpen(false);
             }}
             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
               activeTab === 'reports'
@@ -277,7 +313,10 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('roster')}
+            onClick={() => {
+              setActiveTab('roster');
+              setIsSidebarOpen(false);
+            }}
             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
               activeTab === 'roster'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
@@ -286,6 +325,21 @@ export default function App() {
           >
             <Users className="w-5 h-5 shrink-0" />
             <span>Employees</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('users');
+              setIsSidebarOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === 'users'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Shield className="w-5 h-5 shrink-0" />
+            <span>Manage Users</span>
           </button>
         </nav>
 
@@ -303,20 +357,43 @@ export default function App() {
 
       {/* 2. Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 print:hidden">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 print:hidden">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-slate-800 tracking-tight">Attendance & Overtime Calculator</h1>
-            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-emerald-700 font-semibold uppercase">
+            {/* Hamburger Trigger for Mobile/Tablet Drawer */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-1.5 text-slate-655 hover:text-indigo-600 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shrink-0"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h1 className="text-sm sm:text-lg font-bold text-slate-800 tracking-tight truncate">Attendance & Overtime Calculator</h1>
+            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-emerald-700 font-semibold uppercase shrink-0 hidden sm:inline-flex">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Live Parser Active
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             {rawData.length > 0 && (
               <p className="text-xs text-slate-500 font-mono italic max-w-[200px] truncate mr-2 hidden md:block">
                 Loaded: {fileName}
               </p>
+            )}
+            {authedEmail && (
+              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shrink-0">
+                <span className="text-xs font-semibold text-slate-600 font-mono max-w-[140px] truncate">{authedEmail}</span>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('auth_email');
+                    setAuthedEmail(null);
+                  }}
+                  className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-rose-600 hover:text-rose-750 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded-lg transition-all cursor-pointer select-none active:scale-95"
+                  title="Sign out of Roster System"
+                >
+                  Log Out
+                </button>
+              </div>
             )}
           </div>
         </header>
@@ -570,6 +647,10 @@ export default function App() {
                 activeFileRawData={rawData}
                 activeFileName={fileName}
               />
+            </div>
+          ) : activeTab === 'users' ? (
+            <div className="space-y-6 animate-fadeIn" id="users-tab">
+              <UserManager currentAdminEmail={authedEmail || ''} />
             </div>
           ) : (
             <div className="space-y-6 animate-fadeIn" id="roster-tab">
