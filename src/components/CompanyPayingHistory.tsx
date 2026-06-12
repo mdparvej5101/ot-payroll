@@ -34,6 +34,8 @@ export default function CompanyPayingHistory({
 }: CompanyPayingHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [monthFilter, setMonthFilter] = useState('ALL');
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Compute stats
   const totalPaidGross = paymentHistory.reduce((sum, r) => sum + r.totalGrossPay, 0);
@@ -149,18 +151,37 @@ export default function CompanyPayingHistory({
                   <Printer className="w-4 h-4 text-slate-500" />
                   Print Paying Report
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("Are you absolutely sure you want to purge and clear the entire company paying history permanently?")) {
-                      onClearAllHistory();
-                    }
-                  }}
-                  className="px-3.5 py-1.5 text-xs font-bold text-red-650 bg-white hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Clear All History
-                </button>
+                {showClearAllConfirm ? (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-220 p-1 rounded-lg animate-pulse">
+                    <span className="text-[10px] font-bold text-rose-700 px-1.5 select-none">Are you sure?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClearAllHistory();
+                        setShowClearAllConfirm(false);
+                      }}
+                      className="bg-red-600 hover:bg-red-750 text-white font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-colors"
+                    >
+                      Yes, Clear All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClearAllConfirm(false)}
+                      className="bg-slate-205 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearAllConfirm(true)}
+                    className="px-3.5 py-1.5 text-xs font-bold text-red-650 bg-white hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Clear All History
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -280,18 +301,36 @@ export default function CompanyPayingHistory({
 
                       {/* Delete Action */}
                       <td className="px-5 py-3 text-center print:hidden">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete payment record for ${record.employeeName} (${record.monthStr}) from history?`)) {
-                              onDeleteHistoryRecord(record.id);
-                            }
-                          }}
-                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-red-650 rounded-lg transition-colors cursor-pointer"
-                          title="Purge record"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {deleteConfirmId === record.id ? (
+                          <div className="flex items-center justify-center gap-1 bg-rose-50 border border-rose-150 p-1 rounded animate-fadeIn">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteHistoryRecord(record.id);
+                                setDeleteConfirmId(null);
+                              }}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmId(record.id)}
+                            className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-red-650 rounded-lg transition-colors cursor-pointer"
+                            title="Purge record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

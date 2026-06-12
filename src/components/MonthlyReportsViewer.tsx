@@ -194,6 +194,7 @@ export default function MonthlyReportsViewer({
 }: MonthlyReportsViewerProps) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>('March 2026');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const [dataSourceType, setDataSourceType] = useState<'excel' | 'emulator'>('emulator');
 
@@ -492,19 +493,38 @@ export default function MonthlyReportsViewer({
                     Print Statement
                   </button>
                   {activeMongoRecord && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`Are you sure you want to permanently delete this wage record from the MongoDB database?`)) {
-                          onDeleteHistoryRecord(activeMongoRecord.id);
-                        }
-                      }}
-                      className="p-1.5 px-3 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all cursor-pointer inline-flex items-center gap-1.5 border border-rose-150"
-                      title="Purge transaction record"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete Slip
-                    </button>
+                    showDeleteConfirm ? (
+                      <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-1 rounded-lg animate-pulse">
+                        <span className="text-[10px] font-bold text-rose-700 px-1.5 select-none">Delete permanently?</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDeleteHistoryRecord(activeMongoRecord.id);
+                            setShowDeleteConfirm(false);
+                          }}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-colors"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-colors"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="p-1.5 px-3 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all cursor-pointer inline-flex items-center gap-1.5 border border-rose-150"
+                        title="Purge transaction record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Slip
+                      </button>
+                    )
                   )}
                 </div>
               </div>

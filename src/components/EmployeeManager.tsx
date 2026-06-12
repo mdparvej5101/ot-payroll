@@ -21,6 +21,8 @@ export default function EmployeeManager({
   const [search, setSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -102,9 +104,10 @@ export default function EmployeeManager({
     setEditingId(null);
   };
 
-  const handleDeleteEmployee = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to remove ${name} from key roster?`)) {
-      onEmployeesChange(employees.filter(emp => emp.id !== id));
+  const handleDeleteEmployee = (id: string) => {
+    onEmployeesChange(employees.filter(emp => emp.id !== id));
+    if (deleteConfirmId === id) {
+      setDeleteConfirmId(null);
     }
   };
 
@@ -139,15 +142,38 @@ export default function EmployeeManager({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            id="reset-db-btn"
-            onClick={onResetToDefault}
-            className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors"
-            title="Reset simulation database to seed records"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reset Defaults
-          </button>
+          {showResetConfirm ? (
+            <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg p-1 animate-pulse">
+              <span className="text-[10px] font-bold text-rose-700 px-1.5 select-none">Reset Roster?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onResetToDefault();
+                  setShowResetConfirm(false);
+                }}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-1 rounded cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              id="reset-db-btn"
+              onClick={() => setShowResetConfirm(true)}
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Reset simulation database to seed records"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reset Defaults
+            </button>
+          )}
           
           <button
             id="toggle-add-form"
@@ -420,6 +446,24 @@ export default function EmployeeManager({
                               Cancel
                             </button>
                           </>
+                        ) : deleteConfirmId === emp.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-150 rounded-lg p-1 animate-fadeIn whitespace-nowrap">
+                            <span className="text-[10px] font-bold text-rose-700 px-1 select-none">Delete?</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteEmployee(emp.id)}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
                         ) : (
                           <>
                             <button
@@ -430,7 +474,7 @@ export default function EmployeeManager({
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                              onClick={() => setDeleteConfirmId(emp.id)}
                               className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                               title="Deregister"
                             >

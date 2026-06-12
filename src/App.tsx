@@ -18,7 +18,7 @@ import OvertimeDetailsTable from './components/OvertimeDetailsTable';
 import CompanyPayingHistory from './components/CompanyPayingHistory';
 import ManualOvertimeCalculator from './components/ManualOvertimeCalculator';
 import MonthlyReportsViewer from './components/MonthlyReportsViewer';
-import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, FileText, Play } from 'lucide-react';
+import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, FileText, Play, Trash2 } from 'lucide-react';
 
 // Roster calculation and persistence setup
 
@@ -30,6 +30,7 @@ export default function App() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [calcMode, setCalcMode] = useState<'text' | 'excel'>('text');
   const [isCalculatedReportGenerated, setIsCalculatedReportGenerated] = useState(false);
+  const [confirmDeleteEmpId, setConfirmDeleteEmpId] = useState<string | null>(null);
 
   const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>([]);
   const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>({});
@@ -134,13 +135,12 @@ export default function App() {
 
   // Reset database back to default seed records
   const handleResetToDefault = () => {
-    if (window.confirm("This will reset the roster database back to seed entries. Proceed?")) {
-      setEmployees(INITIAL_MOCK_EMPLOYEES);
-      fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(INITIAL_MOCK_EMPLOYEES)
-      }).catch(err => console.error("Error resetting employees to seed database", err));
+    setEmployees(INITIAL_MOCK_EMPLOYEES);
+    fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(INITIAL_MOCK_EMPLOYEES)
+    }).catch(err => console.error("Error resetting employees to seed database", err));
 
       setAdminDeductions({});
       fetch('/api/settings', {
@@ -155,7 +155,6 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: {} })
       }).catch(err => console.error("Error resetting auto minus duration settings", err));
-    }
   };
 
   // Database syncing triggers
@@ -325,22 +324,6 @@ export default function App() {
         {/* Scrollable Main Content Frame */}
         <div className="p-6 space-y-6 flex-1 overflow-y-auto print:p-0 print:overflow-visible">
           
-          {/* Dynamic Hero banner with beautiful slate header styling */}
-          <section className="bg-indigo-900 text-white rounded-2xl shadow-lg p-6 sm:p-8 relative overflow-hidden print:hidden">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-            <div className="relative z-10 max-w-4xl space-y-1.5">
-              <span className="bg-indigo-800 text-indigo-200 text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border border-indigo-700">
-                Attendance XLS payroll system
-              </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-                Automatic Overtime Deductions & Monthly Wages
-              </h2>
-              <p className="text-xs sm:text-sm text-indigo-100 max-w-2xl leading-relaxed">
-                Biometric attendance sheets map automatically. First punch represents <strong>IN</strong>, and last punch represents <strong>OUT</strong>. Subtracts a static daily 15-minute break deduction and employee's duty shift requirement to lock real-time overtime charges.
-              </p>
-            </div>
-          </section>
-
           {/* Render Active View Modules */}
           {activeTab === 'dashboard' ? (
             <div className="space-y-6" id="payroll-dashboard-tab animate-fadeIn">
@@ -471,7 +454,7 @@ export default function App() {
                             Choose an employee from the parsed {reports.length} workforce profiles
                           </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <label htmlFor="employee-detail-select" className="text-xs font-bold text-slate-400 uppercase tracking-widest text-[10px]">
                             Punch Profile:
                           </label>
@@ -489,6 +472,44 @@ export default function App() {
                               </option>
                             ))}
                           </select>
+
+                          {activeSelectedEmployeeId && (
+                            confirmDeleteEmpId === activeSelectedEmployeeId ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-1.5 rounded-xl animate-pulse">
+                                <span className="text-[10px] font-bold text-rose-700 px-1.5 select-none">Delete permanently?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = employees.filter(emp => emp.id !== activeSelectedEmployeeId);
+                                    handleEmployeesChange(updated);
+                                    setSelectedEmployeeId(null);
+                                    setConfirmDeleteEmpId(null);
+                                  }}
+                                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  Yes, Delete
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteEmpId(null)}
+                                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-2.5 py-1.5 rounded-lg cursor-pointer transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setConfirmDeleteEmpId(activeSelectedEmployeeId);
+                                }}
+                                className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-750 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 select-none"
+                                title="Delete this employee from roster"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Delete Employee</span>
+                              </button>
+                            )
+                          )}
                         </div>
                       </div>
 
