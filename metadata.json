@@ -1,0 +1,6 @@
+{
+  "name": "Overtime Payroll Calculator",
+  "description": "An automated utility to group daily employee biometric clock-ins, subtract break times and shift requirements, compute individual overtime pay, and generate downloadable payroll reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

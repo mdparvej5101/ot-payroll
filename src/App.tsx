@@ -1,0 +1,576 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Employee, EmployeeAttendanceReport, AttendanceDay, UnmatchedLog, PaidRecord } from './types';
+import {
+  INITIAL_MOCK_EMPLOYEES,
+  groupRawPunches,
+  generatePayrollReport,
+  findUnmatchedExcelKeys
+} from './utils/calculator';
+import EmployeeManager from './components/EmployeeManager';
+import AttendanceUploader from './components/AttendanceUploader';
+import PayrollReport from './components/PayrollReport';
+import OvertimeDetailsTable from './components/OvertimeDetailsTable';
+import CompanyPayingHistory from './components/CompanyPayingHistory';
+import ManualOvertimeCalculator from './components/ManualOvertimeCalculator';
+import MonthlyReportsViewer from './components/MonthlyReportsViewer';
+import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, FileText, Play } from 'lucide-react';
+
+// Roster calculation and persistence setup
+
+export default function App() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [rawData, setRawData] = useState<any[]>([]);
+  const [fileName, setFileName] = useState('');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster'>('dashboard');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [calcMode, setCalcMode] = useState<'text' | 'excel'>('text');
+  const [isCalculatedReportGenerated, setIsCalculatedReportGenerated] = useState(false);
+
+  const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>([]);
+  const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>({});
+  const [autoMinusUnder9HrsList, setAutoMinusUnder9HrsList] = useState<{[empId: string]: boolean}>({});
+
+  // Load employee database on startup from MongoDB Atlas
+  useEffect(() => {
+    fetch('/api/employees')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setEmployees(data);
+        } else {
+          setEmployees(INITIAL_MOCK_EMPLOYEES);
+        }
+      })
+      .catch(err => {
+        console.error("Error loading employees from database", err);
+        setEmployees(INITIAL_MOCK_EMPLOYEES);
+      });
+
+    fetch('/api/payments')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setPaymentHistory(data);
+        }
+      })
+      .catch(err => console.error("Error loading payments from database", err));
+
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.adminDeductions) setAdminDeductions(data.adminDeductions);
+        if (data.autoMinusUnder9HrsList) setAutoMinusUnder9HrsList(data.autoMinusUnder9HrsList);
+      })
+      .catch(err => console.error("Error loading app configurations from database", err));
+  }, []);
+
+  const handleAddPaymentHistory = (record: PaidRecord) => {
+    fetch('/api/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
+    })
+    .then(res => res.json())
+    .then(() => {
+      return fetch('/api/payments');
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (Array.isArray(data)) {
+        setPaymentHistory(data);
+      }
+    })
+    .catch(err => {
+      console.error("Error adding payment record to database", err);
+      // Fallback local UI update if server fails
+      setPaymentHistory(prev => {
+        const exists = prev.some(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr);
+        if (exists) {
+          return prev.map(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr ? record : r);
+        } else {
+          return [record, ...prev];
+        }
+      });
+    });
+  };
+
+  const handleDeleteHistoryRecord = (id: string) => {
+    fetch(`/api/payments/${id}`, { method: 'DELETE' })
+      .then(() => {
+        setPaymentHistory(prev => prev.filter(r => r.id !== id));
+      })
+      .catch(err => {
+        console.error("Error purging record from database", err);
+        setPaymentHistory(prev => prev.filter(r => r.id !== id));
+      });
+  };
+
+  const handleClearAllHistory = () => {
+    fetch('/api/payments', { method: 'DELETE' })
+      .then(() => {
+        setPaymentHistory([]);
+      })
+      .catch(err => {
+        console.error("Error clearing payment records table", err);
+        setPaymentHistory([]);
+      });
+  };
+
+  // Sync edits to MongoDB database
+  const handleEmployeesChange = (updatedList: Employee[]) => {
+    setEmployees(updatedList);
+    fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedList)
+    })
+    .catch(err => console.error("Error syncing employees roster list to database", err));
+  };
+
+  // Reset database back to default seed records
+  const handleResetToDefault = () => {
+    if (window.confirm("This will reset the roster database back to seed entries. Proceed?")) {
+      setEmployees(INITIAL_MOCK_EMPLOYEES);
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(INITIAL_MOCK_EMPLOYEES)
+      }).catch(err => console.error("Error resetting employees to seed database", err));
+
+      setAdminDeductions({});
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'adminDeductions', value: {} })
+      }).catch(err => console.error("Error resetting admin deductions settings", err));
+
+      setAutoMinusUnder9HrsList({});
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: {} })
+      }).catch(err => console.error("Error resetting auto minus duration settings", err));
+    }
+  };
+
+  // Database syncing triggers
+
+  // Run Calculations
+  const groupedPunches = groupRawPunches(rawData);
+  const reports = generatePayrollReport(employees, groupedPunches, adminDeductions, autoMinusUnder9HrsList);
+  const unmatchedLogs = findUnmatchedExcelKeys(employees, groupedPunches);
+
+  // Helper to compile human-readable month label for database rows
+  const resolveMonthLabel = (daysObj: { [dateStr: string]: any }) => {
+    const dates = Object.keys(daysObj);
+    if (dates.length === 0) return "Monthly Report";
+    const firstDateStr = dates[0];
+    const dateObj = new Date(firstDateStr);
+    if (isNaN(dateObj.getTime())) return "Monthly Report";
+    const months = [
+      "January", "February", "March", "April", "May", "June", 
+      "July", "August", "September", "October", "November", "December"
+    ];
+    return `${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+  };
+
+  // Drilldown Selected Employee details (default to first active parsed employee with days worked, if none explicitly chosen yet)
+  const firstActiveEmployee = reports.find(r => r.summary.totalDaysWorked > 0);
+  const activeSelectedEmployeeId = selectedEmployeeId || (firstActiveEmployee ? firstActiveEmployee.employee.id : (reports.length > 0 ? reports[0].employee.id : null));
+  const selectedReport = reports.find(r => r.employee.id === activeSelectedEmployeeId);
+  const selectedRawPunches = selectedReport 
+    ? (groupedPunches[selectedReport.employee.name] || groupedPunches[selectedReport.employee.number])
+    : undefined;
+
+  // Check if current employee report is already written to Mongo database history
+  const isSelectedReportSaved = selectedReport 
+    ? paymentHistory.some(p => p.employeeId === selectedReport.employee.id && p.monthStr === resolveMonthLabel(selectedReport.days))
+    : false;
+
+  const handleSaveReportForActiveEmployee = () => {
+    if (!selectedReport) return;
+    const { employee, days, summary } = selectedReport;
+    const resolvedMonth = resolveMonthLabel(days);
+
+    const record: PaidRecord = {
+      id: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      monthStr: resolvedMonth,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      employeeNum: employee.number,
+      department: employee.department,
+      totalDaysWorked: summary.totalDaysWorked,
+      offDaysCount: summary.offDaysCount,
+      cumulativeHours: summary.cumulativeHours,
+      cumulativeOvertimeHours: summary.cumulativeOvertimeHours,
+      regularPay: summary.regularPay,
+      overtimePay: summary.overtimePay,
+      totalGrossPay: summary.totalGrossPay,
+      paymentDateStr: new Date().toISOString()
+    };
+
+    handleAddPaymentHistory(record);
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      {/* 1. Dark Sidebar as specified by Sleek Interface */}
+      <aside className="w-64 bg-slate-900 flex flex-col h-full shrink-0 print:hidden">
+        {/* Brand Header */}
+        <div className="p-6 flex items-center space-x-3 border-b border-slate-800">
+          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white shrink-0 shadow-md">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+          </div>
+          <span className="text-white font-bold text-xl tracking-tight">PayrollFlow</span>
+        </div>
+
+        {/* Sidebar Nav Items */}
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <FileSpreadsheet className="w-5 h-5 shrink-0" />
+            <span>Dashboard</span>
+          </button>
+
+          <button
+            id="nav-calculate-overtime"
+            onClick={() => {
+              setActiveTab('calculate');
+              setSelectedEmployeeId(null);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === 'calculate'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Clock className="w-5 h-5 shrink-0" />
+            <span>Calculate Overtime</span>
+          </button>
+
+          <button
+            id="nav-reports-explorer"
+            onClick={() => {
+              setActiveTab('reports');
+              setSelectedEmployeeId(null);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === 'reports'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <FileText className="w-5 h-5 shrink-0" />
+            <span>Reports</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('roster')}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === 'roster'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Users className="w-5 h-5 shrink-0" />
+            <span>Employees</span>
+          </button>
+        </nav>
+
+        {/* Sidebar Footer with system status */}
+        <div className="p-4 border-t border-slate-800">
+          <div className="flex flex-col gap-1.5 px-3 py-2">
+            <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Database Status</div>
+            <div className="text-emerald-400 text-xs font-mono font-semibold flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+              MongoDB Active
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* 2. Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 print:hidden">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-slate-800 tracking-tight">Attendance & Overtime Calculator</h1>
+            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-emerald-700 font-semibold uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Parser Active
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {rawData.length > 0 && (
+              <p className="text-xs text-slate-500 font-mono italic max-w-[200px] truncate mr-2 hidden md:block">
+                Loaded: {fileName}
+              </p>
+            )}
+          </div>
+        </header>
+
+        {/* Scrollable Main Content Frame */}
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto print:p-0 print:overflow-visible">
+          
+          {/* Dynamic Hero banner with beautiful slate header styling */}
+          <section className="bg-indigo-900 text-white rounded-2xl shadow-lg p-6 sm:p-8 relative overflow-hidden print:hidden">
+            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+            <div className="relative z-10 max-w-4xl space-y-1.5">
+              <span className="bg-indigo-800 text-indigo-200 text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border border-indigo-700">
+                Attendance XLS payroll system
+              </span>
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+                Automatic Overtime Deductions & Monthly Wages
+              </h2>
+              <p className="text-xs sm:text-sm text-indigo-100 max-w-2xl leading-relaxed">
+                Biometric attendance sheets map automatically. First punch represents <strong>IN</strong>, and last punch represents <strong>OUT</strong>. Subtracts a static daily 15-minute break deduction and employee's duty shift requirement to lock real-time overtime charges.
+              </p>
+            </div>
+          </section>
+
+          {/* Render Active View Modules */}
+          {activeTab === 'dashboard' ? (
+            <div className="space-y-6" id="payroll-dashboard-tab animate-fadeIn">
+              <CompanyPayingHistory
+                paymentHistory={paymentHistory}
+                onDeleteHistoryRecord={handleDeleteHistoryRecord}
+                onClearAllHistory={handleClearAllHistory}
+              />
+            </div>
+          ) : activeTab === 'calculate' ? (
+            <div className="space-y-6 animate-fadeIn" id="manual-calculation-tab">
+              {/* Sub-selector to toggle between Manual Biometric Text Paste vs XLSX file upload */}
+              <div className="flex bg-slate-200/80 p-1.5 rounded-xl w-fit border border-slate-250 print:hidden shrink-0">
+                <button
+                  type="button"
+                  id="tab-toggle-text"
+                  onClick={() => setCalcMode('text')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    calcMode === 'text'
+                      ? 'bg-white text-slate-800 shadow-sm font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Option A: Paste Biometric Text logs
+                </button>
+                <button
+                  type="button"
+                  id="tab-toggle-excel"
+                  onClick={() => setCalcMode('excel')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    calcMode === 'excel'
+                      ? 'bg-white text-slate-800 shadow-sm font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Option B: Upload Excel Attendance Sheet
+                </button>
+              </div>
+
+              {calcMode === 'text' ? (
+                <ManualOvertimeCalculator
+                  employees={employees}
+                  adminDeductions={adminDeductions}
+                  onToggleDeduction={(empId, dateStr) => {
+                    const key = `${empId}_${dateStr}`;
+                    setAdminDeductions(prev => {
+                      const updated = {
+                        ...prev,
+                        [key]: !prev[key]
+                      };
+                      fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'adminDeductions', value: updated })
+                      }).catch(err => console.error("Error updating deductive settings", err));
+                      return updated;
+                    });
+                  }}
+                  autoMinusUnder9HrsList={autoMinusUnder9HrsList}
+                  onToggleAutoMinus={(empId) => {
+                    setAutoMinusUnder9HrsList(prev => {
+                      const updated = {
+                        ...prev,
+                        [empId]: !prev[empId]
+                      };
+                      fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: updated })
+                      }).catch(err => console.error("Error updating auto-minus settings", err));
+                      return updated;
+                    });
+                  }}
+                  onAddPaymentHistory={handleAddPaymentHistory}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {/* File Uploader Bar */}
+                  <div className="print:hidden border-b border-dashed border-slate-200 pb-3">
+                    <AttendanceUploader
+                      onDataParsed={(data) => {
+                        setRawData(data);
+                        setSelectedEmployeeId(null);
+                        setIsCalculatedReportGenerated(false); // require clicking Generate as requested
+                      }}
+                      fileName={fileName}
+                      setFileName={setFileName}
+                      unmatchedLogs={unmatchedLogs}
+                      hasData={rawData.length > 0}
+                    />
+                  </div>
+
+                  {/* Dynamic Help Callout / Generate trigger button as requested in Requirement #2 */}
+                  {rawData.length > 0 && !isCalculatedReportGenerated && (
+                    <div className="p-10 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs text-center space-y-4 max-w-lg mx-auto py-12 animate-fadeIn">
+                      <div className="w-14 h-14 bg-indigo-50 text-indigo-650 flex items-center justify-center rounded-xl mx-auto shadow-sm border border-indigo-100">
+                        <FileSpreadsheet className="w-7 h-7" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <h4 className="font-extrabold text-slate-800 text-sm">Attendance Logs Loaded & Active</h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          We found <strong className="text-slate-800 font-extrabold">{rawData.length} check-in log records</strong> in <strong className="font-mono text-xs text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{fileName}</strong>. To compute real-time shift hours, deduct static breaks, and configure overtime payouts, click the Generate button.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        id="calculate-generate-btn"
+                        onClick={() => setIsCalculatedReportGenerated(true)}
+                        className="py-3 px-7 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-md inline-flex items-center gap-2 cursor-pointer border border-indigo-650 active:scale-95 text-[11px] uppercase tracking-wider font-sans select-none"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current text-white" />
+                        Generate Overtime Report
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Payroll Results Section & Daily Drilldowns - only rendered upon Generation! */}
+                  {isCalculatedReportGenerated && (
+                    <>
+                      {/* Beautiful Employee Selection Dropdown for direct access */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn">
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-sm tracking-tight flex items-center gap-1.5 hover:text-indigo-650 transition-colors">
+                            <Users className="w-4.5 h-4.5 text-indigo-600" />
+                            Select Employee to Audit punches
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            Choose an employee from the parsed {reports.length} workforce profiles
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label htmlFor="employee-detail-select" className="text-xs font-bold text-slate-400 uppercase tracking-widest text-[10px]">
+                            Punch Profile:
+                          </label>
+                          <select
+                            id="employee-detail-select"
+                            value={activeSelectedEmployeeId || ""}
+                            onChange={(e) => setSelectedEmployeeId(e.target.value || null)}
+                            className="py-2.5 px-4 text-xs font-bold rounded-xl bg-white border border-slate-300 shadow-xs outline-none text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all min-w-[240px]"
+                          >
+                            {reports.map(r => (
+                              <option key={r.employee.id} value={r.employee.id}>
+                                {r.summary.totalDaysWorked > 0 ? "● " : "○ "}
+                                {r.employee.name.toUpperCase()} 
+                                {r.summary.totalDaysWorked > 0 ? ` (Worked: ${r.summary.totalDaysWorked}d, OT Wages: ৳${r.summary.overtimePay.toFixed(2)})` : ' (No punched records)'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Detailed Daily Drilldown table shown directly for the selected employee */}
+                      {selectedReport && (
+                        <div className="animate-fadeIn">
+                          <OvertimeDetailsTable
+                            report={selectedReport}
+                            rawPunches={selectedRawPunches}
+                            adminDeductions={adminDeductions}
+                            onToggleDeduction={(dateStr) => {
+                              const key = `${selectedReport.employee.id}_${dateStr}`;
+                              setAdminDeductions(prev => {
+                                const updated = {
+                                  ...prev,
+                                  [key]: !prev[key]
+                                };
+                                fetch('/api/settings', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ key: 'adminDeductions', value: updated })
+                                }).catch(err => console.error("Error updating settings", err));
+                                return updated;
+                              });
+                            }}
+                            autoMinusUnder9Hrs={autoMinusUnder9HrsList[selectedReport.employee.id] || false}
+                            onToggleAutoMinus={() => {
+                              const empId = selectedReport.employee.id;
+                              setAutoMinusUnder9HrsList(prev => {
+                                const updated = {
+                                  ...prev,
+                                  [empId]: !prev[empId]
+                                };
+                                fetch('/api/settings', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: updated })
+                                }).catch(err => console.error("Error updating settings", err));
+                                return updated;
+                              });
+                            }}
+                            onSave={handleSaveReportForActiveEmployee}
+                            isSaved={isSelectedReportSaved}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'reports' ? (
+            <div className="space-y-6 animate-fadeIn" id="reports-tab">
+              <MonthlyReportsViewer
+                employees={employees}
+                paymentHistory={paymentHistory}
+                onDeleteHistoryRecord={handleDeleteHistoryRecord}
+                activeFileRawData={rawData}
+                activeFileName={fileName}
+              />
+            </div>
+          ) : (
+            <div className="space-y-6 animate-fadeIn" id="roster-tab">
+              <EmployeeManager
+                employees={employees}
+                onEmployeesChange={handleEmployeesChange}
+                onResetToDefault={handleResetToDefault}
+              />
+            </div>
+          )}
+
+          {/* Footer of Scroll area */}
+          <footer className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 pt-8 border-t border-slate-200 print:hidden gap-2 pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>Calculation Logic: <code>((Exit - Entry) - 15m Buffer) - Duty shift</code></span>
+              <span className="h-3 w-px bg-slate-300 hidden sm:inline"></span>
+              <span>Currency: BDT (৳)</span>
+            </div>
+            <div>System Status: Live & Ready | Database: MongoDB Atlas (Mongoose)</div>
+          </footer>
+        </div>
+      </main>
+    </div>
+  );
+}
