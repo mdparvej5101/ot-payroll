@@ -28,7 +28,7 @@ export const EmployeeSchema = new mongoose.Schema({
   dutyHours: { type: Number, required: true }
 });
 
-export const EmployeeModel = mongoose.model("Employee", EmployeeSchema);
+export const EmployeeModel = (mongoose.models.Employee || mongoose.model("Employee", EmployeeSchema)) as any;
 
 // 2. Paid Record Schema
 export const PaidRecordSchema = new mongoose.Schema({
@@ -48,7 +48,7 @@ export const PaidRecordSchema = new mongoose.Schema({
   paymentDateStr: { type: String, required: true }
 });
 
-export const PaidRecordModel = mongoose.model("PaidRecord", PaidRecordSchema);
+export const PaidRecordModel = (mongoose.models.PaidRecord || mongoose.model("PaidRecord", PaidRecordSchema)) as any;
 
 // 3. Settings Schema
 export const SettingsSchema = new mongoose.Schema({
@@ -56,7 +56,7 @@ export const SettingsSchema = new mongoose.Schema({
   value: { type: mongoose.Schema.Types.Mixed, required: true }
 });
 
-export const SettingsModel = mongoose.model("Settings", SettingsSchema);
+export const SettingsModel = (mongoose.models.Settings || mongoose.model("Settings", SettingsSchema)) as any;
 
 // 4. User Schema (Simple Credentials Authentication)
 export const UserSchema = new mongoose.Schema({
@@ -64,4 +64,4 @@ export const UserSchema = new mongoose.Schema({
   password: { type: String, required: true }
 });
 
-export const UserModel = mongoose.model("User", UserSchema);
+export const UserModel = (mongoose.models.User || mongoose.model("User", UserSchema)) as any;

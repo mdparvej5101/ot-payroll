@@ -277,9 +277,13 @@ async function startViteServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server started. Listening on http://0.0.0.0:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server started. Listening on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 startViteServer();
+
+export default app;
