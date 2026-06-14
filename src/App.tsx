@@ -18,9 +18,7 @@ import OvertimeDetailsTable from './components/OvertimeDetailsTable';
 import CompanyPayingHistory from './components/CompanyPayingHistory';
 import ManualOvertimeCalculator from './components/ManualOvertimeCalculator';
 import MonthlyReportsViewer from './components/MonthlyReportsViewer';
-import LoginAuth from './components/LoginAuth';
-import UserManager from './components/UserManager';
-import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, Shield, FileText, Play, Trash2, Menu, X } from 'lucide-react';
+import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, ShieldCheck, FileText, Play, Trash2, Menu, X } from 'lucide-react';
 
 // Roster calculation and persistence setup
 
@@ -28,12 +26,12 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [rawData, setRawData] = useState<any[]>([]);
   const [fileName, setFileName] = useState('');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster'>('dashboard');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [calcMode, setCalcMode] = useState<'text' | 'excel'>('text');
   const [isCalculatedReportGenerated, setIsCalculatedReportGenerated] = useState(false);
   const [confirmDeleteEmpId, setConfirmDeleteEmpId] = useState<string | null>(null);
-  const [authedEmail, setAuthedEmail] = useState<string | null>(() => localStorage.getItem('auth_email'));
+  const authedEmail = "Admin";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>([]);
@@ -231,9 +229,7 @@ export default function App() {
     handleAddPaymentHistory(record);
   };
 
-  if (!authedEmail) {
-    return <LoginAuth onLoginSuccess={(email) => setAuthedEmail(email)} />;
-  }
+
 
   return (
     <div className="flex h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
@@ -337,21 +333,6 @@ export default function App() {
             <Users className="w-5 h-5 shrink-0" />
             <span>Employees</span>
           </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('users');
-              setIsSidebarOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-              activeTab === 'users'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Shield className="w-5 h-5 shrink-0" />
-            <span>Manage Users</span>
-          </button>
         </nav>
 
         {/* Sidebar Footer with system status */}
@@ -390,21 +371,6 @@ export default function App() {
               <p className="text-xs text-slate-500 font-mono italic max-w-[200px] truncate mr-2 hidden md:block">
                 Loaded: {fileName}
               </p>
-            )}
-            {authedEmail && (
-              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shrink-0">
-                <span className="text-xs font-semibold text-slate-600 font-mono max-w-[140px] truncate">{authedEmail}</span>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('auth_email');
-                    setAuthedEmail(null);
-                  }}
-                  className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-rose-600 hover:text-rose-750 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded-lg transition-all cursor-pointer select-none active:scale-95"
-                  title="Sign out of Roster System"
-                >
-                  Log Out
-                </button>
-              </div>
             )}
           </div>
         </header>
@@ -658,10 +624,6 @@ export default function App() {
                 activeFileRawData={rawData}
                 activeFileName={fileName}
               />
-            </div>
-          ) : activeTab === 'users' ? (
-            <div className="space-y-6 animate-fadeIn" id="users-tab">
-              <UserManager currentAdminEmail={authedEmail || ''} />
             </div>
           ) : (
             <div className="space-y-6 animate-fadeIn" id="roster-tab">
