@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
+import fs from "fs";
 import { connectToDatabase, EmployeeModel, PaidRecordModel, SettingsModel, UserModel } from "./src/db/mongoose";
 import { verifyDatabaseConnection, requestLogger } from "./src/db/middleware";
 
@@ -254,14 +254,23 @@ app.post("/api/settings", async (req, res) => {
 
 // Front-end Vite integration
 async function startViteServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!isProduction) {
+    console.log("Running in development mode...");
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("Failed to start Vite dev server, compiling fallback...", err);
+    }
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    console.log("Running in production mode, serving dist static files...");
+    const distPath = typeof __dirname !== "undefined" ? __dirname : path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

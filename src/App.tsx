@@ -40,10 +40,15 @@ export default function App() {
   const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>({});
   const [autoMinusUnder9HrsList, setAutoMinusUnder9HrsList] = useState<{[empId: string]: boolean}>({});
 
-  // Load employee database on startup from MongoDB Atlas
+  // Load employee database on startup from MongoDB Atlas once authenticated
   useEffect(() => {
+    if (!authedEmail) return;
+
     fetch('/api/employees')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setEmployees(data);
@@ -57,7 +62,10 @@ export default function App() {
       });
 
     fetch('/api/payments')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           setPaymentHistory(data);
@@ -66,13 +74,16 @@ export default function App() {
       .catch(err => console.error("Error loading payments from database", err));
 
     fetch('/api/settings')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data.adminDeductions) setAdminDeductions(data.adminDeductions);
         if (data.autoMinusUnder9HrsList) setAutoMinusUnder9HrsList(data.autoMinusUnder9HrsList);
       })
       .catch(err => console.error("Error loading app configurations from database", err));
-  }, []);
+  }, [authedEmail]);
 
   const handleAddPaymentHistory = (record: PaidRecord) => {
     fetch('/api/payments', {
