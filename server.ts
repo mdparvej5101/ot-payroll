@@ -20,50 +20,10 @@ function hashPassword(password: string): string {
 const app = express();
 const PORT = 3000;
 
-// Connect to MongoDB Atlas (Mongoose)
+// Connect to MongoDB Atlas (Mongoose) sequentially on startup
 connectToDatabase().catch((err) => {
   console.error("Critical MongoDB connection failure on backend startup:", err);
 });
-
-// Base seed database on startup if MongoDB database is empty
-const INITIAL_MOCK_EMPLOYEES = [
-  { id: "EMP001", name: "MAHBUB", number: "6", department: "OUR COMPANY", hourlyRate: 120, overtimeRate: 120, dutyHours: 9 },
-  { id: "EMP002", name: "SARAH KHAN", number: "12", department: "OUR COMPANY", hourlyRate: 150, overtimeRate: 150, dutyHours: 9 },
-  { id: "EMP003", name: "JOHN DOE", number: "25", department: "LOGISTICS", hourlyRate: 110, overtimeRate: 110, dutyHours: 9 },
-  { id: "EMP004", name: "ALEX GRADY", number: "33", department: "ADMINISTRATION", hourlyRate: 160, overtimeRate: 160, dutyHours: 9 },
-  { id: "EMP005", name: "TAREK AZIZ", number: "8", department: "OUR COMPANY", hourlyRate: 130, overtimeRate: 130, dutyHours: 9 }
-];
-
-async function seedDatabase() {
-  try {
-    const count = await EmployeeModel.countDocuments();
-    if (count === 0) {
-      await EmployeeModel.insertMany(INITIAL_MOCK_EMPLOYEES);
-      console.log("Database seeded successfully with initial employees");
-    }
-
-    const userCount = await UserModel.countDocuments();
-    // Ensure the requested master administrator account exists
-    const adminEmail = "rangdhanuit@gmail.com";
-    const existingAdmin = await UserModel.findOne({ email: adminEmail });
-    if (!existingAdmin) {
-      const defaultUser = {
-        email: adminEmail,
-        password: hashPassword("rangdhanu")
-      };
-      await UserModel.create(defaultUser);
-      console.log(`Database seeded successfully with master administrator (email: ${adminEmail})`);
-    } else {
-      // Keep it up-to-date with requested password
-      existingAdmin.password = hashPassword("rangdhanu");
-      await existingAdmin.save();
-      console.log(`Master administrator password verified for ${adminEmail}`);
-    }
-  } catch (err) {
-    console.error("Error seeding default databases:", err);
-  }
-}
-seedDatabase();
 
 // Use Express Global Middleware
 app.use(express.json());

@@ -1,23 +1,26 @@
 import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
+import { connectToDatabase } from "./mongoose";
 
 /**
  * Express middleware to verify that MongoDB is active and connected
  * before processing any persistent API route.
+ * Handles serverless on-demand connection seamlessly.
  */
-export function verifyDatabaseConnection(req: Request, res: Response, next: NextFunction) {
-  const state = mongoose.connection.readyState;
-  
-  // 0: disconnected, 1: connected, 2: connecting, 3: disconnecting
-  if (state !== 1 && state !== 2) {
-    return res.status(503).json({
-      error: "Database Service Unavailable",
-      message: "MongoDB Atlas connection is currently offline or reconnecting. Please check connection string.",
+export async function verifyDatabaseConnection(req: Request, res: Response, next: NextFunction) {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err) {
+    const state = mongoose.connection.readyState;
+    console.error("Database connection guard failed:", err);
+    res.status(503).json({
+      error: "Database Connection Failed",
+      message: "Failed to establish a connection with MongoDB Atlas.",
+      details: (err as Error).message,
       connectionState: state
     });
   }
-  
-  next();
 }
 
 /**
