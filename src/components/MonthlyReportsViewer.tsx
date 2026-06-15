@@ -365,7 +365,7 @@ export default function MonthlyReportsViewer({
               Official Wage & Overtime Reports
             </h3>
             <p className="text-xs text-slate-500">
-              Lookup official monthly pay stubs and overtime calculations registered in MongoDB.
+              Lookup official monthly pay stubs and overtime calculations saved in Local Storage.
             </p>
           </div>
 
@@ -470,16 +470,16 @@ export default function MonthlyReportsViewer({
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 sm:p-8">
               
               {/* Slip action header */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-5 mb-5 print:hidden">
+               <div className="flex items-center justify-between border-b border-slate-100 pb-5 mb-5 print:hidden">
                 {activeMongoRecord ? (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 py-1 px-3.5 rounded-full font-bold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>MongoDB Database Synchronized</span>
+                    <span>Local Storage Synchronized</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 py-1 px-3.5 rounded-full font-bold">
                     <Info className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Calculated (Unsaved to DB)</span>
+                    <span>Calculated (Unsaved to History)</span>
                   </div>
                 )}
                 
@@ -549,7 +549,7 @@ export default function MonthlyReportsViewer({
                   <div className="text-left sm:text-right font-mono text-[11px] text-slate-500 space-y-0.5">
                     <div>Statement ID: <span className="font-semibold text-slate-800">{activeMongoRecord?.id || `TEMP-${Date.now()}`}</span></div>
                     <div>Calculation Date: <span className="font-semibold text-slate-800">{new Date().toLocaleDateString(undefined, { dateStyle: 'medium' })}</span></div>
-                    <div>Database Engine: <span className="text-indigo-650 font-semibold">{activeMongoRecord ? "MongoDB Atlas" : "Local Live Engine"}</span></div>
+                    <div>Database Engine: <span className="text-indigo-650 font-semibold">{activeMongoRecord ? "Local Storage History" : "Local Live Engine"}</span></div>
                   </div>
                 </div>
 

@@ -23,7 +23,19 @@ import { FileSpreadsheet, Users, Briefcase, Calculator, Clock, HelpCircle, Shiel
 // Roster calculation and persistence setup
 
 export default function App() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    try {
+      const saved = localStorage.getItem('roster_live_employees');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error("Error reading employees from localStorage:", e);
+    }
+    return INITIAL_MOCK_EMPLOYEES;
+  });
+
   const [rawData, setRawData] = useState<any[]>([]);
   const [fileName, setFileName] = useState('');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calculate' | 'reports' | 'roster'>('dashboard');
@@ -34,140 +46,85 @@ export default function App() {
   const authedEmail = "Admin";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>([]);
-  const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>({});
-  const [autoMinusUnder9HrsList, setAutoMinusUnder9HrsList] = useState<{[empId: string]: boolean}>({});
+  const [paymentHistory, setPaymentHistory] = useState<PaidRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('roster_live_payments');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Error reading payments from localStorage:", e);
+    }
+    return [];
+  });
 
-  // Load employee database on startup from MongoDB Atlas once authenticated
+  const [adminDeductions, setAdminDeductions] = useState<{[key: string]: boolean}>(() => {
+    try {
+      const saved = localStorage.getItem('roster_live_adminDeductions');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Error reading admin deductions from localStorage:", e);
+    }
+    return {};
+  });
+
+  const [autoMinusUnder9HrsList, setAutoMinusUnder9HrsList] = useState<{[empId: string]: boolean}>(() => {
+    try {
+      const saved = localStorage.getItem('roster_live_autoMinusUnder9HrsList');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Error reading auto minus settings from localStorage:", e);
+    }
+    return {};
+  });
+
+  // No remote backend fetches required since states are loaded synchronously on mount from localStorage.
   useEffect(() => {
-    if (!authedEmail) return;
-
-    fetch('/api/employees')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setEmployees(data);
-        } else {
-          setEmployees(INITIAL_MOCK_EMPLOYEES);
-        }
-      })
-      .catch(err => {
-        console.error("Error loading employees from database", err);
-        setEmployees(INITIAL_MOCK_EMPLOYEES);
-      });
-
-    fetch('/api/payments')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (Array.isArray(data)) {
-          setPaymentHistory(data);
-        }
-      })
-      .catch(err => console.error("Error loading payments from database", err));
-
-    fetch('/api/settings')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (data.adminDeductions) setAdminDeductions(data.adminDeductions);
-        if (data.autoMinusUnder9HrsList) setAutoMinusUnder9HrsList(data.autoMinusUnder9HrsList);
-      })
-      .catch(err => console.error("Error loading app configurations from database", err));
-  }, [authedEmail]);
+    // Keep rawData in sync or print status
+    console.log("App loaded. System status: Live, Database: LocalStorage (Database-Free Mode)");
+  }, []);
 
   const handleAddPaymentHistory = (record: PaidRecord) => {
-    fetch('/api/payments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    })
-    .then(res => res.json())
-    .then(() => {
-      return fetch('/api/payments');
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (Array.isArray(data)) {
-        setPaymentHistory(data);
+    setPaymentHistory(prev => {
+      const exists = prev.some(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr);
+      let updated;
+      if (exists) {
+        updated = prev.map(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr ? record : r);
+      } else {
+        updated = [record, ...prev];
       }
-    })
-    .catch(err => {
-      console.error("Error adding payment record to database", err);
-      // Fallback local UI update if server fails
-      setPaymentHistory(prev => {
-        const exists = prev.some(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr);
-        if (exists) {
-          return prev.map(r => r.employeeId === record.employeeId && r.monthStr === record.monthStr ? record : r);
-        } else {
-          return [record, ...prev];
-        }
-      });
+      localStorage.setItem('roster_live_payments', JSON.stringify(updated));
+      return updated;
     });
   };
 
   const handleDeleteHistoryRecord = (id: string) => {
-    fetch(`/api/payments/${id}`, { method: 'DELETE' })
-      .then(() => {
-        setPaymentHistory(prev => prev.filter(r => r.id !== id));
-      })
-      .catch(err => {
-        console.error("Error purging record from database", err);
-        setPaymentHistory(prev => prev.filter(r => r.id !== id));
-      });
+    setPaymentHistory(prev => {
+      const updated = prev.filter(r => r.id !== id);
+      localStorage.setItem('roster_live_payments', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const handleClearAllHistory = () => {
-    fetch('/api/payments', { method: 'DELETE' })
-      .then(() => {
-        setPaymentHistory([]);
-      })
-      .catch(err => {
-        console.error("Error clearing payment records table", err);
-        setPaymentHistory([]);
-      });
+    setPaymentHistory([]);
+    localStorage.removeItem('roster_live_payments');
   };
 
-  // Sync edits to MongoDB database
+  // Sync edits to LocalStorage
   const handleEmployeesChange = (updatedList: Employee[]) => {
     setEmployees(updatedList);
-    fetch('/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedList)
-    })
-    .catch(err => console.error("Error syncing employees roster list to database", err));
+    localStorage.setItem('roster_live_employees', JSON.stringify(updatedList));
   };
 
-  // Reset database back to default seed records
+  // Reset database back to default seed records locally
   const handleResetToDefault = () => {
     setEmployees(INITIAL_MOCK_EMPLOYEES);
-    fetch('/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(INITIAL_MOCK_EMPLOYEES)
-    }).catch(err => console.error("Error resetting employees to seed database", err));
+    localStorage.setItem('roster_live_employees', JSON.stringify(INITIAL_MOCK_EMPLOYEES));
 
-      setAdminDeductions({});
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'adminDeductions', value: {} })
-      }).catch(err => console.error("Error resetting admin deductions settings", err));
+    setAdminDeductions({});
+    localStorage.removeItem('roster_live_adminDeductions');
 
-      setAutoMinusUnder9HrsList({});
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: {} })
-      }).catch(err => console.error("Error resetting auto minus duration settings", err));
+    setAutoMinusUnder9HrsList({});
+    localStorage.removeItem('roster_live_autoMinusUnder9HrsList');
   };
 
   // Database syncing triggers
@@ -341,7 +298,7 @@ export default function App() {
             <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Database Status</div>
             <div className="text-emerald-400 text-xs font-mono font-semibold flex items-center gap-1.5 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
-              MongoDB Active
+              Local Storage Active
             </div>
           </div>
         </div>
@@ -428,11 +385,7 @@ export default function App() {
                         ...prev,
                         [key]: !prev[key]
                       };
-                      fetch('/api/settings', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key: 'adminDeductions', value: updated })
-                      }).catch(err => console.error("Error updating deductive settings", err));
+                      localStorage.setItem('roster_live_adminDeductions', JSON.stringify(updated));
                       return updated;
                     });
                   }}
@@ -443,11 +396,7 @@ export default function App() {
                         ...prev,
                         [empId]: !prev[empId]
                       };
-                      fetch('/api/settings', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: updated })
-                      }).catch(err => console.error("Error updating auto-minus settings", err));
+                      localStorage.setItem('roster_live_autoMinusUnder9HrsList', JSON.stringify(updated));
                       return updated;
                     });
                   }}
@@ -581,11 +530,7 @@ export default function App() {
                                   ...prev,
                                   [key]: !prev[key]
                                 };
-                                fetch('/api/settings', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ key: 'adminDeductions', value: updated })
-                                }).catch(err => console.error("Error updating settings", err));
+                                localStorage.setItem('roster_live_adminDeductions', JSON.stringify(updated));
                                 return updated;
                               });
                             }}
@@ -597,11 +542,7 @@ export default function App() {
                                   ...prev,
                                   [empId]: !prev[empId]
                                 };
-                                fetch('/api/settings', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ key: 'autoMinusUnder9HrsList', value: updated })
-                                }).catch(err => console.error("Error updating settings", err));
+                                localStorage.setItem('roster_live_autoMinusUnder9HrsList', JSON.stringify(updated));
                                 return updated;
                               });
                             }}
@@ -642,7 +583,7 @@ export default function App() {
               <span className="h-3 w-px bg-slate-300 hidden sm:inline"></span>
               <span>Currency: BDT (৳)</span>
             </div>
-            <div>System Status: Live & Ready | Database: MongoDB Atlas (Mongoose)</div>
+            <div>System Status: Live & Ready | Database: Local Storage (Database-Free)</div>
           </footer>
         </div>
       </main>

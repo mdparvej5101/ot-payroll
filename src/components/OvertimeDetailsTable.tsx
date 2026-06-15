@@ -394,7 +394,7 @@ export default function OvertimeDetailsTable({
             </span>
             <span className="text-xs font-medium text-slate-500">
               {isSaved 
-                ? `Saved! "${employee.name}" overtime voucher is securely written to MongoDB.` 
+                ? `Saved! "${employee.name}" overtime voucher is securely written to Local Storage.` 
                 : `Ready to submit. Click Save to log calculated OT for "${employee.name}".`
               }
             </span>
@@ -415,7 +415,7 @@ export default function OvertimeDetailsTable({
                 className="py-2.5 px-6 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-md inline-flex items-center gap-2 cursor-pointer border border-indigo-650 hover:shadow-indigo-150 text-[11px]"
               >
                 <CheckCircle className="w-3.5 h-3.5 text-indigo-200" />
-                Save Report to MongoDB
+                Save Report to History
               </button>
             )}
           </div>

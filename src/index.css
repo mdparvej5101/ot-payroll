@@ -1,1 +1,47 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide sidebars and settings buttons */
+  aside,
+  header,
+  nav,
+  button,
+  select,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Make main container full width and height auto for normal paging */
+  body, 
+  #root,
+  main,
+  .overflow-hidden {
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* Force background colors to print beautifully */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Expand margins for the printed report container */
+  .bg-white, .border-slate-200 {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin-bottom: 2rem !important;
+  }
+
+  /* Avoid page breaks inside table rows or slip components */
+  table tr, .bg-slate-50\/20, .border {
+    page-break-inside: avoid !important;
+  }
+}

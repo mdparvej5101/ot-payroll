@@ -181,7 +181,7 @@ export default function PayrollReport({
       {successSavedName && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce print:hidden">
           <Check className="w-4.5 h-4.5 text-emerald-600" />
-          <span>Successfully saved <strong>{successSavedName}</strong>'s calculated wages & overtime record to MongoDB Atlas database successfully! This record is now registered in the Main Dashboard.</span>
+          <span>Successfully saved <strong>{successSavedName}</strong>'s calculated wages & overtime record to Local Storage history! This record is now registered in the Main Dashboard.</span>
         </div>
       )}
 
@@ -436,7 +436,7 @@ export default function PayrollReport({
         {filteredReports.length > 0 && (
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
             <div className="text-xs text-slate-500 font-medium">
-              Check all records above. Click bottom save to write all {filteredReports.length} filtered employee reports directly to MongoDB.
+              Check all records above. Click bottom save to write all {filteredReports.length} filtered employee reports directly to Local Storage.
             </div>
             <button
               type="button"
@@ -469,12 +469,12 @@ export default function PayrollReport({
                   }
                 });
                 
-                alert(`Successfully processed and synced all workforce records to the MongoDB database! (${savedCount} new, others skipped as already saved)`);
+                alert(`Successfully processed and synced all workforce records to Local Storage! (${savedCount} new, others skipped as already saved)`);
               }}
               className="px-5 py-2.5 rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-md inline-flex items-center gap-2 cursor-pointer border border-indigo-650"
             >
               <Database className="w-4 h-4 fill-current text-white" />
-              Save All to MongoDB
+              Save All to Local Storage
             </button>
           </div>
         )}

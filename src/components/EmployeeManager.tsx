@@ -267,7 +267,7 @@ export default function EmployeeManager({
           </div>
 
           <div className="md:col-span-5 flex justify-end items-center">
-            <p className="text-xs text-slate-500 italic">⭐ Submitting will register employee in the secure MongoDB database</p>
+            <p className="text-xs text-slate-500 italic">⭐ Submitting will register employee in the local storage roster registry</p>
           </div>
 
           <div className="flex items-end">
